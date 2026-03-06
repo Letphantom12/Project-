@@ -1,5 +1,5 @@
 import streamlit as st
-import PyPDF2
+from pypdf import PdfReader
 import io
 import os
 import re
