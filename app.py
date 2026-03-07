@@ -158,7 +158,7 @@ Resume:
 {resume_text}
 """
 response = client.chat.completions.create(
-    model="openchat/openchat-3.5-0106",
+    model="meta-llama/llama-3-8b-instruct:free",
     messages=[
         {"role": "user", "content": "prompt"}
     ],
