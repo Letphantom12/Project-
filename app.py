@@ -11,9 +11,7 @@ from reportlab.lib.pagesizes import A4
 from io import BytesIO
 from docx import Document
 
-# =====================================
-# API KEY (Streamlit Secrets or Local)
-# =====================================
+
 try:
     OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
 except:
