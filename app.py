@@ -165,16 +165,12 @@ response = client.chat.completions.create(
     max_tokens=900
 )
 result = response.choices[0].message.content
-result = response.output_text
 
-        st.session_state.analysis = result
+st.session_state.analysis = result
+st.session_state.ats_old = get_score(result)
 
-        st.session_state.ats_old = get_score(result)
-
-        st.subheader("📊 Resume Analysis")
-
-        st.write(result)
-
+st.subheader("📊 Resume Analysis")
+st.write(result)
 
 # =====================================
 # IMPROVE RESUME
