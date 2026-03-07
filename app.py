@@ -141,22 +141,32 @@ if analyze_btn:
         st.session_state.resume_text = resume_text
 
         prompt = f"""
+prompt = f"""
 You are an ATS resume evaluator.
 
-Return EXACT format:
+IMPORTANT:
+- Respond ONLY in English.
+- Analyze the resume professionally.
+
+Return in this format:
 
 ATS Score: <number>
-Strengths: <bullet points>
-Weak Areas: <bullet points>
-Skill Gaps: <missing skills>
-Improvement Suggestions: <actions>
-Job Role Fit: <percentage or explanation>
+Strengths:
+- point
+- point
 
-Target Role: {job_role or "General"}
+Weak Areas:
+- point
+- point
+
+Skill Gaps:
+- missing skills
+
+Improvement Suggestions:
+- actions
 
 Resume:
 {resume_text}
-"""
 response = client.chat.completions.create(
     model="openrouter/auto",
     messages=[
