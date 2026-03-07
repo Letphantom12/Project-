@@ -23,16 +23,11 @@ if not OPENAI_API_KEY:
     st.error("❌ OPENAI_API_KEY not found")
     st.stop()
 
-# =====================================
-# OPENAI CLIENT (OpenRouter)
-# =====================================
+
+
 client = OpenAI(
-    api_key=OPENAI_API_KEY,
-    base_url="https://openrouter.ai/api/v1",
-    default_headers={
-        "HTTP-Referer": "https://streamlit.io",
-        "X-Title": "AI Resume Critiquer"
-    }
+    api_key=st.secrets["OPENAI_API_KEY"],
+    base_url="https://openrouter.ai/api/v1"
 )
 
 # =====================================
