@@ -158,7 +158,7 @@ Resume:
 {resume_text}
 """
 response = client.chat.completions.create(
-    model="google/gemma-7b-it",
+    model="openrouter/auto",
     messages=[
         {"role": "user", "content": "prompt"}
     ],
