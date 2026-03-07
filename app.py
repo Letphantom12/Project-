@@ -157,19 +157,15 @@ Target Role: {job_role or "General"}
 Resume:
 {resume_text}
 """
-
-    response = client.chat.completions.create(
+response = client.chat.completions.create(
     model="openai/gpt-4o-mini",
     messages=[
         {"role": "user", "content": prompt}
     ],
     max_tokens=900
 )
-
-
 result = response.choices[0].message.content
-
-        result = response.output_text
+result = response.output_text
 
         st.session_state.analysis = result
 
