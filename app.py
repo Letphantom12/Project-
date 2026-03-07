@@ -4,7 +4,6 @@ import io
 import os
 import re
 import pandas as pd
-from dotenv import load_dotenv
 from openai import OpenAI
 from reportlab.platypus import SimpleDocTemplate, Paragraph
 from reportlab.lib.styles import getSampleStyleSheet
@@ -13,30 +12,33 @@ from io import BytesIO
 from docx import Document
 
 
-# ======================================================
-# ENV
-# ======================================================
-load_dotenv()
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+# ==============================
+# API KEY (Streamlit Secrets)
+# ==============================
+try:
+    OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
+except:
+    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 if not OPENAI_API_KEY:
-    st.error("❌ Add OPENAI_API_KEY in .env")
+    st.error("❌ OPENAI_API_KEY not found")
     st.stop()
 
 
-# ======================================================
+# ==============================
 # OPENAI CLIENT
-# ======================================================
+# ==============================
 client = OpenAI(
     api_key=OPENAI_API_KEY,
     base_url="https://openrouter.ai/api/v1"
 )
 
 
-# ======================================================
+# ==============================
 # UI
-# ======================================================
+# ==============================
 st.set_page_config(page_title="AI Resume Critiquer", page_icon="📃")
+
 st.title("📃 AI Resume Critiquer")
 st.caption("Analyze • Improve • Compare • Download")
 
@@ -45,77 +47,105 @@ uploaded_file = st.file_uploader("Upload Resume (PDF/TXT)", ["pdf", "txt"])
 job_role = st.text_input("Target Job Role (optional)")
 
 c1, c2, c3 = st.columns(3)
+
 analyze_btn = c1.button("Analyze")
 improve_btn = c2.button("Improve")
 compare_btn = c3.button("Compare")
 
 
-# ======================================================
+# ==============================
 # FUNCTIONS
-# ======================================================
+# ==============================
 
 def extract_text_from_pdf(file):
-    reader = PyPDF2.PdfReader(file)
+    reader = PdfReader(file)
     text = ""
+
     for page in reader.pages:
-        if page.extract_text():
-            text += page.extract_text() + "\n"
+        content = page.extract_text()
+        if content:
+            text += content + "\n"
+
     return text
 
 
 def extract_text(file):
+
     if file.type == "application/pdf":
         return extract_text_from_pdf(io.BytesIO(file.read()))
+
     return file.read().decode("utf-8", errors="ignore")
 
 
 def get_score(text):
-    match = re.search(r'\d+', text)
-    return int(match.group()) if match else 0
 
+    match = re.search(r"\d+", text)
 
-def get_value(label, text):
-    match = re.search(label + r":\s*(.*)", text)
-    return match.group(1) if match else "N/A"
+    if match:
+        return int(match.group())
+
+    return 0
 
 
 def generate_pdf(text):
+
     buffer = BytesIO()
+
     doc = SimpleDocTemplate(buffer, pagesize=A4)
+
     styles = getSampleStyleSheet()
-    story = [Paragraph(line, styles["Normal"]) for line in text.split("\n")]
+
+    story = []
+
+    for line in text.split("\n"):
+        story.append(Paragraph(line, styles["Normal"]))
+
     doc.build(story)
+
     buffer.seek(0)
+
     return buffer
 
 
 def generate_docx(text):
+
     doc = Document()
+
     for line in text.split("\n"):
         doc.add_paragraph(line)
+
     buffer = BytesIO()
+
     doc.save(buffer)
+
     buffer.seek(0)
+
     return buffer
 
 
-# ======================================================
+# ==============================
 # SESSION STATE
-# ======================================================
+# ==============================
+
 for key in ["resume_text", "analysis", "improved", "ats_old", "ats_new"]:
     if key not in st.session_state:
         st.session_state[key] = ""
 
 
-# ======================================================
-# STEP 1 — DETAILED ANALYSIS ⭐
-# ======================================================
+# ==============================
+# ANALYZE RESUME
+# ==============================
+
 if analyze_btn:
 
     if not uploaded_file:
+
         st.warning("Upload resume first")
+
     else:
+
         resume_text = extract_text(uploaded_file)
+
         st.session_state.resume_text = resume_text
 
         prompt = f"""
@@ -126,9 +156,9 @@ Return EXACT format:
 ATS Score: <number>
 Strengths: <bullet points>
 Weak Areas: <bullet points>
-Skill Gaps: <missing skills list>
+Skill Gaps: <missing skills>
 Improvement Suggestions: <actions>
-Job Role Fit: <percentage or short explanation>
+Job Role Fit: <percentage or explanation>
 
 Target Role: {job_role or "General"}
 
@@ -145,23 +175,36 @@ Resume:
         result = response.output_text
 
         st.session_state.analysis = result
+
         st.session_state.ats_old = get_score(result)
 
         st.subheader("📊 Resume Analysis")
+
         st.write(result)
 
 
-# ======================================================
-# STEP 2 — IMPROVE + SCORE NEW
-# ======================================================
+# ==============================
+# IMPROVE RESUME
+# ==============================
+
 if improve_btn:
 
     if not st.session_state.resume_text:
-        st.warning("Analyze first")
+
+        st.warning("Analyze resume first")
+
     else:
+
         prompt = f"""
-Rewrite professionally and improve ATS score.
-Address skill gaps and weaknesses.
+Rewrite this resume professionally.
+
+Improve ATS score.
+
+Fix:
+- skill gaps
+- weak areas
+- formatting
+
 Do not add fake experience.
 
 Resume:
@@ -178,9 +221,10 @@ Analysis:
         )
 
         improved = response.output_text
+
         st.session_state.improved = improved
 
-        score_prompt = f"Give ATS score only (number)\n{improved}"
+        score_prompt = f"Give ATS score only number\n{improved}"
 
         score_res = client.responses.create(
             model="openai/gpt-4o-mini",
@@ -191,34 +235,45 @@ Analysis:
         st.session_state.ats_new = get_score(score_res.output_text)
 
         st.subheader("✨ Improved Resume")
+
         st.write(improved)
 
 
-# ======================================================
-# STEP 3 — DOWNLOAD
-# ======================================================
+# ==============================
+# DOWNLOAD
+# ==============================
+
 if st.session_state.improved:
 
-    st.subheader("📥 Download")
+    st.subheader("📥 Download Improved Resume")
 
     pdf_file = generate_pdf(st.session_state.improved)
+
     docx_file = generate_docx(st.session_state.improved)
 
     a, b = st.columns(2)
-    a.download_button("PDF", pdf_file, "Improved_Resume.pdf")
-    b.download_button("DOCX", docx_file, "Improved_Resume.docx")
+
+    a.download_button("Download PDF", pdf_file, "Improved_Resume.pdf")
+
+    b.download_button("Download DOCX", docx_file, "Improved_Resume.docx")
 
 
-# ======================================================
-# STEP 4 — STABLE COMPARISON
-# ======================================================
+# ==============================
+# COMPARISON
+# ==============================
+
 if compare_btn:
 
     if not st.session_state.improved:
+
         st.warning("Improve resume first")
+
     else:
+
         ats_old = st.session_state.ats_old
+
         ats_new = st.session_state.ats_new
+
         improvement = ats_new - ats_old
 
         st.subheader("📊 Resume Comparison Dashboard")
@@ -230,4 +285,5 @@ if compare_btn:
         })
 
         st.dataframe(df, hide_index=True, use_container_width=True)
+
         st.metric("ATS Improvement", ats_new, improvement)
