@@ -167,7 +167,7 @@ response = client.chat.completions.create(
 result = response.choices[0].message.content
 
 st.session_state.analysis = result
-st.session_state.ats_old = get_score(result)
+st.session_state.ats_old = get_score(str(result))
 
 st.subheader("📊 Resume Analysis")
 st.write(result)
