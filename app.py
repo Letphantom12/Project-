@@ -11,10 +11,9 @@ from reportlab.lib.pagesizes import A4
 from io import BytesIO
 from docx import Document
 
-
-# ==============================
-# API KEY (Streamlit Secrets)
-# ==============================
+# =====================================
+# API KEY (Streamlit Secrets or Local)
+# =====================================
 try:
     OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
 except:
@@ -24,24 +23,25 @@ if not OPENAI_API_KEY:
     st.error("❌ OPENAI_API_KEY not found")
     st.stop()
 
-
-# ==============================
-# OPENAI CLIENT
-# ==============================
+# =====================================
+# OPENAI CLIENT (OpenRouter)
+# =====================================
 client = OpenAI(
     api_key=OPENAI_API_KEY,
-    base_url="https://openrouter.ai/api/v1"
+    base_url="https://openrouter.ai/api/v1",
+    default_headers={
+        "HTTP-Referer": "https://streamlit.io",
+        "X-Title": "AI Resume Critiquer"
+    }
 )
 
-
-# ==============================
+# =====================================
 # UI
-# ==============================
+# =====================================
 st.set_page_config(page_title="AI Resume Critiquer", page_icon="📃")
 
 st.title("📃 AI Resume Critiquer")
 st.caption("Analyze • Improve • Compare • Download")
-
 
 uploaded_file = st.file_uploader("Upload Resume (PDF/TXT)", ["pdf", "txt"])
 job_role = st.text_input("Target Job Role (optional)")
@@ -52,10 +52,9 @@ analyze_btn = c1.button("Analyze")
 improve_btn = c2.button("Improve")
 compare_btn = c3.button("Compare")
 
-
-# ==============================
+# =====================================
 # FUNCTIONS
-# ==============================
+# =====================================
 
 def extract_text_from_pdf(file):
     reader = PdfReader(file)
@@ -123,18 +122,18 @@ def generate_docx(text):
     return buffer
 
 
-# ==============================
+# =====================================
 # SESSION STATE
-# ==============================
+# =====================================
 
 for key in ["resume_text", "analysis", "improved", "ats_old", "ats_new"]:
     if key not in st.session_state:
         st.session_state[key] = ""
 
 
-# ==============================
+# =====================================
 # ANALYZE RESUME
-# ==============================
+# =====================================
 
 if analyze_btn:
 
@@ -183,9 +182,9 @@ Resume:
         st.write(result)
 
 
-# ==============================
+# =====================================
 # IMPROVE RESUME
-# ==============================
+# =====================================
 
 if improve_btn:
 
@@ -239,9 +238,9 @@ Analysis:
         st.write(improved)
 
 
-# ==============================
+# =====================================
 # DOWNLOAD
-# ==============================
+# =====================================
 
 if st.session_state.improved:
 
@@ -258,9 +257,9 @@ if st.session_state.improved:
     b.download_button("Download DOCX", docx_file, "Improved_Resume.docx")
 
 
-# ==============================
+# =====================================
 # COMPARISON
-# ==============================
+# =====================================
 
 if compare_btn:
 
