@@ -158,7 +158,7 @@ Resume:
 {resume_text}
 """
 response = client.chat.completions.create(
-    model="meta-llama/llama-3-8b-instruct:free",
+    model="mistralai/mistral-7b-instruct",
     messages=[
         {"role": "user", "content": "prompt"}
     ],
