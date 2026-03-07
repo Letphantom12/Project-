@@ -158,13 +158,14 @@ Resume:
 {resume_text}
 """
 
-        response = client.chat.completions.create(
+    response = client.chat.completions.create(
     model="openai/gpt-4o-mini",
     messages=[
         {"role": "user", "content": prompt}
     ],
     max_tokens=900
 )
+
 
 result = response.choices[0].message.content
 
