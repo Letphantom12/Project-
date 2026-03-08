@@ -39,7 +39,7 @@ st.title("📄 AI Resume Critiquer")
 st.caption("Analyze • Improve • Compare • Download")
 
 uploaded_file = st.file_uploader("Upload Resume (PDF/TXT)", ["pdf", "txt"])
-job_role = st.text_input("Target Job Role (optional)")
+job_role = st.text_input("Target Job Role")
 
 c1, c2, c3 = st.columns(3)
 
@@ -78,7 +78,6 @@ def get_score(text):
 
 
 def generate_pdf(text):
-
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4)
     styles = getSampleStyleSheet()
@@ -94,9 +93,7 @@ def generate_pdf(text):
 
 
 def generate_docx(text):
-
     doc = Document()
-
     for line in text.split("\n"):
         doc.add_paragraph(line)
 
@@ -144,7 +141,15 @@ if analyze_btn:
         prompt = f"""
 You are an ATS resume evaluator.
 
-Return analysis in this format:
+Target Job Role: {job_role}
+
+Evaluate the resume for this role considering:
+- keyword matching
+- skill relevance
+- experience alignment
+- formatting
+
+Return in this format:
 
 ATS Score: <number>
 
@@ -157,7 +162,7 @@ Weak Areas:
 - point
 
 Skill Gaps:
-- skills
+- skills missing for the job
 
 Improvement Suggestions:
 - actions
@@ -169,6 +174,7 @@ Resume:
         response = client.chat.completions.create(
             model="openrouter/auto",
             messages=[{"role": "user", "content": prompt}],
+            temperature=0,
             max_tokens=900
         )
 
@@ -176,7 +182,6 @@ Resume:
 
         ats_old = get_score(result)
 
-        # fallback if parsing fails
         if ats_old == 0:
             ats_old = 55
 
@@ -199,7 +204,9 @@ if improve_btn:
     else:
 
         prompt = f"""
-Rewrite this resume professionally.
+Rewrite this resume professionally for the role:
+
+{job_role}
 
 Improve ATS score.
 
@@ -220,6 +227,7 @@ Analysis:
         response = client.chat.completions.create(
             model="openrouter/auto",
             messages=[{"role": "user", "content": prompt}],
+            temperature=0,
             max_tokens=1200
         )
 
@@ -232,10 +240,13 @@ Analysis:
         # ======================
 
         score_prompt = f"""
-Return ONLY a number between 80 and 95 representing ATS score.
+You are an ATS system.
 
-Example:
-85
+Evaluate this resume for the job role:
+
+{job_role}
+
+Return ONLY a number between 0 and 100.
 
 Resume:
 {improved}
@@ -244,6 +255,7 @@ Resume:
         score_res = client.chat.completions.create(
             model="openrouter/auto",
             messages=[{"role": "user", "content": score_prompt}],
+            temperature=0,
             max_tokens=10
         )
 
@@ -254,7 +266,6 @@ Resume:
 
         ats_new = get_score(score_text)
 
-        # fallback
         if ats_new == 0:
             ats_new = 85
 
@@ -275,15 +286,15 @@ if st.session_state.improved:
     pdf_file = generate_pdf(st.session_state.improved)
     docx_file = generate_docx(st.session_state.improved)
 
-    c1, c2 = st.columns(2)
+    col1, col2 = st.columns(2)
 
-    c1.download_button(
+    col1.download_button(
         "Download PDF",
         pdf_file,
         "Improved_Resume.pdf"
     )
 
-    c2.download_button(
+    col2.download_button(
         "Download DOCX",
         docx_file,
         "Improved_Resume.docx"
@@ -322,4 +333,3 @@ if compare_btn:
         })
 
         st.dataframe(df, hide_index=True, use_container_width=True)
-
