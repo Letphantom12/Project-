@@ -11,6 +11,9 @@ from reportlab.lib.pagesizes import A4
 from io import BytesIO
 from docx import Document
 
+# =====================================
+# API KEY
+# =====================================
 
 try:
     OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
@@ -21,16 +24,15 @@ if not OPENAI_API_KEY:
     st.error("❌ OPENAI_API_KEY not found")
     st.stop()
 
-
-
 client = OpenAI(
-    api_key=st.secrets["OPENAI_API_KEY"],
+    api_key=OPENAI_API_KEY,
     base_url="https://openrouter.ai/api/v1"
 )
 
 # =====================================
 # UI
 # =====================================
+
 st.set_page_config(page_title="AI Resume Critiquer", page_icon="📃")
 
 st.title("📃 AI Resume Critiquer")
@@ -131,26 +133,24 @@ for key in ["resume_text", "analysis", "improved", "ats_old", "ats_new"]:
 if analyze_btn:
 
     if not uploaded_file:
-
         st.warning("Upload resume first")
 
     else:
 
         resume_text = extract_text(uploaded_file)
-
         st.session_state.resume_text = resume_text
 
         prompt = f"""
-prompt = f"""
 You are an ATS resume evaluator.
 
 IMPORTANT:
-- Respond ONLY in English.
-- Analyze the resume professionally.
+- Respond ONLY in English
+- Analyze the resume professionally
 
 Return in this format:
 
 ATS Score: <number>
+
 Strengths:
 - point
 - point
@@ -163,24 +163,29 @@ Skill Gaps:
 - missing skills
 
 Improvement Suggestions:
-- actions
+- action
+- action
 
 Resume:
 {resume_text}
-response = client.chat.completions.create(
-    model="openrouter/auto",
-    messages=[
-        {"role": "user", "content": "prompt"}
-    ],
-    max_tokens=900
-)
-result = response.choices[0].message.content
+"""
 
-st.session_state.analysis = result
-st.session_state.ats_old = get_score(str(result))
+        response = client.chat.completions.create(
+            model="openrouter/auto",
+            messages=[
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=900
+        )
 
-st.subheader("📊 Resume Analysis")
-st.write(result)
+        result = response.choices[0].message.content
+
+        st.session_state.analysis = result
+        st.session_state.ats_old = get_score(str(result))
+
+        st.subheader("📊 Resume Analysis")
+        st.write(result)
+
 
 # =====================================
 # IMPROVE RESUME
@@ -189,7 +194,6 @@ st.write(result)
 if improve_btn:
 
     if not st.session_state.resume_text:
-
         st.warning("Analyze resume first")
 
     else:
@@ -213,28 +217,31 @@ Analysis:
 {st.session_state.analysis}
 """
 
-        response = client.responses.create(
-            model="openai/gpt-4o-mini",
-            input=prompt,
-            max_output_tokens=1200
+        response = client.chat.completions.create(
+            model="openrouter/auto",
+            messages=[
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=1200
         )
 
-        improved = response.output_text
+        improved = response.choices[0].message.content
 
         st.session_state.improved = improved
 
-        score_prompt = f"Give ATS score only number\n{improved}"
+        score_prompt = f"Give ATS score only number for this resume:\n{improved}"
 
-        score_res = client.responses.create(
-            model="openai/gpt-4o-mini",
-            input=score_prompt,
-            max_output_tokens=10
+        score_res = client.chat.completions.create(
+            model="openrouter/auto",
+            messages=[
+                {"role": "user", "content": score_prompt}
+            ],
+            max_tokens=10
         )
 
-        st.session_state.ats_new = get_score(score_res.output_text)
+        st.session_state.ats_new = get_score(score_res.choices[0].message.content)
 
         st.subheader("✨ Improved Resume")
-
         st.write(improved)
 
 
@@ -247,13 +254,11 @@ if st.session_state.improved:
     st.subheader("📥 Download Improved Resume")
 
     pdf_file = generate_pdf(st.session_state.improved)
-
     docx_file = generate_docx(st.session_state.improved)
 
     a, b = st.columns(2)
 
     a.download_button("Download PDF", pdf_file, "Improved_Resume.pdf")
-
     b.download_button("Download DOCX", docx_file, "Improved_Resume.docx")
 
 
@@ -264,13 +269,11 @@ if st.session_state.improved:
 if compare_btn:
 
     if not st.session_state.improved:
-
         st.warning("Improve resume first")
 
     else:
 
         ats_old = st.session_state.ats_old
-
         ats_new = st.session_state.ats_new
 
         improvement = ats_new - ats_old
