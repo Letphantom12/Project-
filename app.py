@@ -73,6 +73,11 @@ def extract_text(file):
 
 def get_score(text):
 
+    if not text:
+        return 0
+
+    text = str(text)
+
     match = re.search(r"\d+", text)
 
     if match:
@@ -239,7 +244,8 @@ Analysis:
             max_tokens=10
         )
 
-        st.session_state.ats_new = get_score(score_res.choices[0].message.content)
+        score_text = score_res.choices[0].message.content
+        st.session_state.ats_new = get_score(score_text)
 
         st.subheader("✨ Improved Resume")
         st.write(improved)
