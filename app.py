@@ -279,8 +279,8 @@ if compare_btn:
 
     else:
 
-        ats_old = st.session_state.ats_old
-        ats_new = st.session_state.ats_new
+        ats_old = int(st.session_state.ats_old or 0)
+        ats_new = int(st.session_state.ats_new or 0)
 
         improvement = ats_new - ats_old
 
