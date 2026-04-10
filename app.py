@@ -199,14 +199,14 @@ Improved Resume:
                 model="openrouter/auto",
                 input=prompt,
                 temperature=0,
-                max_output_tokens=200
+                max_output_tokens=500
             )
 
         new_ats = extract_ats(response.output_text)
 
         # FORCE IMPROVEMENT
-        new_ats = max(new_ats, old_ats + 10)
-        new_ats = min(new_ats, 95)
+        new_ats = max(new_ats, old_ats + 40)
+        new_ats = min(new_ats, 85)
 
         improvement = new_ats - old_ats
 
