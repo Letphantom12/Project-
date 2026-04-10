@@ -180,7 +180,7 @@ Suggestions:
             model="openrouter/auto",
             input=prompt,
             temperature=0,
-            max_output_tokens=500
+            max_output_tokens=1500
         )
         st.session_state.improved_resume = response.output_text
 
