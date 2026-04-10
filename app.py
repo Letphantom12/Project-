@@ -66,8 +66,22 @@ def extract_text(file):
     return file.read().decode("utf-8", errors="ignore")
 
 def extract_ats(text):
+    if not text:
+        return 50
+
     match = re.search(r"ATS_SCORE\s*:\s*(\d+)", text)
-    return int(match.group(1)) if match else 50
+
+    if match:
+        return int(match.group(1))
+
+    # fallback: find ANY number between 0–100
+    numbers = re.findall(r"\b([0-9]{1,3})\b", text)
+    for num in numbers:
+        val = int(num)
+        if 0 <= val <= 100:
+            return val
+
+    return 60  # safe default
 
 def get_hash(text):
     return hashlib.md5(text.encode()).hexdigest()
