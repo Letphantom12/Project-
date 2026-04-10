@@ -1,9 +1,10 @@
 import streamlit as st
-from pypdf import PdfReader
+import PyPDF2
 import io
 import os
 import re
-import pandas as pd
+import hashlib
+from dotenv import load_dotenv
 from openai import OpenAI
 from reportlab.platypus import SimpleDocTemplate, Paragraph
 from reportlab.lib.styles import getSampleStyleSheet
@@ -11,251 +12,208 @@ from reportlab.lib.pagesizes import A4
 from io import BytesIO
 from docx import Document
 
-# ===============================
-# API KEY (STREAMLIT SAFE)
-# ===============================
-
-try:
-    OPENAI_API_KEY = st.secrets["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"]
-except:
-    OPENAI_API_KEY = os.getenv("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")
+# -------------------- LOAD API KEY --------------------
+load_dotenv()
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 if not OPENAI_API_KEY:
-    st.error("❌ OPENAI_API_KEY not found")
+    st.error("❌ API key not found. Check .env file.")
     st.stop()
 
-client = OpenAI(api_key="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")
+client = OpenAI(
+    api_key=OPENAI_API_KEY,
+    base_url="https://openrouter.ai/api/v1"
+)
 
-# ===============================
-# UI
-# ===============================
-
-st.set_page_config(page_title="AI Resume Critiquer", page_icon="📄")
-
+# -------------------- UI --------------------
+st.set_page_config(page_title="AI Resume Critiquer", page_icon="📄", layout="centered")
 st.title("📄 AI Resume Critiquer")
-st.caption("Analyze • Improve • Compare • Download")
+st.write("Analyze, improve, and download your resume using AI.")
 
-uploaded_file = st.file_uploader("Upload Resume (PDF/TXT)", ["pdf", "txt"])
-job_role = st.text_input("Target Job Role")
+uploaded_file = st.file_uploader("Upload Resume (PDF or TXT)", ["pdf", "txt"])
+job_role = st.text_input("Target Job Role (optional)")
 
-c1, c2, c3 = st.columns(3)
+analyze_btn = st.button("Analyze Resume")
+improve_btn = st.button("Generate Improved Resume")
+compare_btn = st.button("Compare Resumes")
 
-analyze_btn = c1.button("Analyze")
-improve_btn = c2.button("Improve")
-compare_btn = c3.button("Compare")
+# -------------------- SESSION STATE --------------------
+if "resume_text" not in st.session_state:
+    st.session_state.resume_text = ""
+if "analysis_text" not in st.session_state:
+    st.session_state.analysis_text = ""
+if "improved_resume" not in st.session_state:
+    st.session_state.improved_resume = ""
+if "analysis_cache" not in st.session_state:
+    st.session_state.analysis_cache = {}
 
-# ===============================
-# FUNCTIONS
-# ===============================
-
+# -------------------- FUNCTIONS --------------------
 def extract_text_from_pdf(file):
-    reader = PdfReader(file)
+    reader = PyPDF2.PdfReader(file)
     text = ""
     for page in reader.pages:
-        content = page.extract_text()
-        if content:
-            text += content + "\n"
+        if page.extract_text():
+            text += page.extract_text() + "\n"
     return text
-
 
 def extract_text(file):
     if file.type == "application/pdf":
         return extract_text_from_pdf(io.BytesIO(file.read()))
     return file.read().decode("utf-8", errors="ignore")
 
+def extract_ats(text):
+    match = re.search(r"ATS_SCORE\s*:\s*(\d+)", text)
+    return int(match.group(1)) if match else 0
 
-def get_score(text):
-    if not text:
-        return 0
-    match = re.search(r"\d+", str(text))
-    return int(match.group()) if match else 0
-
+def get_hash(text):
+    return hashlib.md5(text.encode()).hexdigest()
 
 def generate_pdf(text):
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4)
     styles = getSampleStyleSheet()
-
-    story = []
-    for line in text.split("\n"):
-        story.append(Paragraph(line, styles["Normal"]))
-
+    story = [Paragraph(line, styles["Normal"]) for line in text.split("\n")]
     doc.build(story)
     buffer.seek(0)
-
     return buffer
-
 
 def generate_docx(text):
-    doc = Document()
+    document = Document()
     for line in text.split("\n"):
-        doc.add_paragraph(line)
-
+        if line.isupper():
+            document.add_heading(line, level=2)
+        else:
+            document.add_paragraph(line)
     buffer = BytesIO()
-    doc.save(buffer)
+    document.save(buffer)
     buffer.seek(0)
-
     return buffer
 
-# ===============================
-# SESSION STATE
-# ===============================
+# -------------------- STEP 1: ANALYZE --------------------
+if analyze_btn and uploaded_file:
+    resume_text = extract_text(uploaded_file)[:800]  # 🔥 reduced tokens
+    st.session_state.resume_text = resume_text
+    resume_hash = get_hash(resume_text + job_role)
 
-for key in ["resume_text", "analysis", "improved", "ats_old", "ats_new"]:
-    if key not in st.session_state:
-        st.session_state[key] = "" if "ats" not in key else 0
-
-# ===============================
-# ANALYZE
-# ===============================
-
-if analyze_btn:
-
-    if not uploaded_file:
-        st.warning("Upload resume first")
-
+    if resume_hash in st.session_state.analysis_cache:
+        analysis_text = st.session_state.analysis_cache[resume_hash]
     else:
-        resume_text = extract_text(uploaded_file)
-        st.session_state.resume_text = resume_text
+        with st.spinner("Analyzing resume..."):
+            prompt = f"""
+ATS score this resume for {job_role if job_role else "general role"}.
 
-        prompt = f"""
-You are an ATS resume evaluator.
-
-Target Job Role: {job_role}
-
-Return strictly:
-
-ATS Score: <number>
+Return format:
+ATS_SCORE: number
 
 Strengths:
-- point
+- points
 
-Weak Areas:
-- point
+Weaknesses:
+- points
 
 Skill Gaps:
-- missing skills
-
-Suggestions:
-- improvements
+- points
 
 Resume:
 {resume_text}
 """
+            response = client.responses.create(
+                model="openrouter/auto",
+                input=prompt,
+                temperature=0,
+                max_output_tokens=500
+            )
+            analysis_text = response.output_text
+            st.session_state.analysis_cache[resume_hash] = analysis_text
 
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0,
-            max_tokens=900
-        )
+    st.session_state.analysis_text = analysis_text
+    st.subheader("📊 Resume Analysis")
+    st.write(analysis_text)
 
-        result = response.choices[0].message.content
-        ats_old = get_score(result) or 55
-
-        st.session_state.analysis = result
-        st.session_state.ats_old = ats_old
-
-        st.subheader("📊 Analysis")
-        st.write(result)
-
-# ===============================
-# IMPROVE
-# ===============================
-
-if improve_btn:
-
-    if not st.session_state.resume_text:
-        st.warning("Analyze first")
-
-    else:
+# -------------------- STEP 2: IMPROVE --------------------
+if improve_btn and st.session_state.resume_text:
+    with st.spinner("Improving resume..."):
         prompt = f"""
-Rewrite this resume professionally for {job_role}.
-Improve ATS score. Do not add fake info.
+Rewrite resume with:
+- ATS format
+- action verbs
+- quantified achievements
+- clear sections
+
+Do not add fake experience.
 
 Resume:
 {st.session_state.resume_text}
 
-Analysis:
-{st.session_state.analysis}
+Suggestions:
+{st.session_state.analysis_text}
 """
-
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}],
+        response = client.responses.create(
+            model="openrouter/auto",
+            input=prompt,
             temperature=0,
-            max_tokens=1200
-        )
+            max_output_tokens=500,)
+        st.session_state.improved_resume = response.output_text
 
-        improved = response.choices[0].message.content
-        st.session_state.improved = improved
+    st.subheader("✨ Improved Resume")
+    st.write(st.session_state.improved_resume)
 
-        # ATS score for improved
-        score_prompt = f"""
-Give ONLY ATS score (0-100):
+# -------------------- STEP 3: COMPARE --------------------
+if compare_btn:
+    if st.session_state.analysis_text and st.session_state.improved_resume:
+        old_ats = extract_ats(st.session_state.analysis_text)
 
-{improved}
+        with st.spinner("Evaluating improved resume..."):
+            prompt = f"""
+Compare ATS scores.
+
+Original:
+{st.session_state.resume_text}
+
+Improved:
+{st.session_state.improved_resume}
+
+Return:
+ATS_SCORE: number
 """
+            response = client.responses.create(
+                model="openrouter/auto",
+                input=prompt,
+                temperature=0,
+                max_output_tokens=500
+            )
 
-        score_res = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": score_prompt}],
-            max_tokens=10
-        )
+        new_ats = extract_ats(response.output_text)
+        improvement = new_ats - old_ats
 
-        ats_new = get_score(score_res.choices[0].message.content) or 85
-        st.session_state.ats_new = ats_new
+        st.subheader("🔍 ATS Comparison")
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("Original ATS Score", f"{old_ats}/100")
+        with col2:
+            st.metric("Improved ATS Score", f"{new_ats}/100", delta=improvement)
 
-        st.subheader("✨ Improved Resume")
-        st.write(improved)
+        st.subheader("📈 ATS Visualization")
+        st.write("Original Resume")
+        st.progress(old_ats / 100)
+        st.write("Improved Resume")
+        st.progress(new_ats / 100)
+    else:
+        st.info("Please analyze and improve the resume first.")
 
-# ===============================
-# DOWNLOAD
-# ===============================
-
-if st.session_state.improved:
-
-    st.subheader("📥 Download")
+# -------------------- DOWNLOAD --------------------
+st.subheader("📥 Download Improved Resume")
+if st.session_state.improved_resume:
+    pdf_file = generate_pdf(st.session_state.improved_resume)
+    docx_file = generate_docx(st.session_state.improved_resume)
 
     col1, col2 = st.columns(2)
-
-    col1.download_button(
-        "PDF",
-        generate_pdf(st.session_state.improved),
-        "resume.pdf"
-    )
-
-    col2.download_button(
-        "DOCX",
-        generate_docx(st.session_state.improved),
-        "resume.docx"
-    )
-
-# ===============================
-# COMPARE
-# ===============================
-
-if compare_btn:
-
-    if not st.session_state.improved:
-        st.warning("Improve first")
-
-    else:
-        old = int(st.session_state.ats_old)
-        new = int(st.session_state.ats_new)
-
-        st.subheader("📊 Comparison")
-
-        c1, c2 = st.columns(2)
-        c1.metric("Old Score", old)
-        c2.metric("New Score", new)
-
-        st.metric("Improvement", new - old)
-
-        df = pd.DataFrame({
-            "Metric": ["ATS Score"],
-            "Old": [old],
-            "Improved": [new]
-        })
-
-        st.dataframe(df, use_container_width=True)
+    with col1:
+        st.download_button("Download PDF", data=pdf_file,
+                           file_name="Improved_Resume.pdf", mime="application/pdf")
+    with col2:
+        st.download_button("Download DOCX", data=docx_file,
+                           file_name="Improved_Resume.docx",
+                           mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+else:
+    st.info("Generate improved resume first.")
