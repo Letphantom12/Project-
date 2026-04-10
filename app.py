@@ -12,7 +12,7 @@ from io import BytesIO
 from docx import Document
 
 # ===============================
-# API KEY
+# API KEY (STREAMLIT SAFE)
 # ===============================
 
 try:
@@ -24,10 +24,7 @@ if not OPENAI_API_KEY:
     st.error("❌ OPENAI_API_KEY not found")
     st.stop()
 
-client = OpenAI(
-    api_key="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",
-    base_url="https://openrouter.ai/api/v1"
-)
+client = OpenAI(api_key=OPENAI_API_KEY)
 
 # ===============================
 # UI
@@ -70,11 +67,8 @@ def extract_text(file):
 def get_score(text):
     if not text:
         return 0
-    text = str(text)
-    match = re.search(r"\d+", text)
-    if match:
-        return int(match.group())
-    return 0
+    match = re.search(r"\d+", str(text))
+    return int(match.group()) if match else 0
 
 
 def generate_pdf(text):
@@ -103,29 +97,16 @@ def generate_docx(text):
 
     return buffer
 
-
 # ===============================
 # SESSION STATE
 # ===============================
 
-if "resume_text" not in st.session_state:
-    st.session_state.resume_text = ""
-
-if "analysis" not in st.session_state:
-    st.session_state.analysis = ""
-
-if "improved" not in st.session_state:
-    st.session_state.improved = ""
-
-if "ats_old" not in st.session_state:
-    st.session_state.ats_old = 0
-
-if "ats_new" not in st.session_state:
-    st.session_state.ats_new = 0
-
+for key in ["resume_text", "analysis", "improved", "ats_old", "ats_new"]:
+    if key not in st.session_state:
+        st.session_state[key] = "" if "ats" not in key else 0
 
 # ===============================
-# ANALYZE RESUME
+# ANALYZE
 # ===============================
 
 if analyze_btn:
@@ -134,7 +115,6 @@ if analyze_btn:
         st.warning("Upload resume first")
 
     else:
-
         resume_text = extract_text(uploaded_file)
         st.session_state.resume_text = resume_text
 
@@ -143,29 +123,21 @@ You are an ATS resume evaluator.
 
 Target Job Role: {job_role}
 
-Evaluate the resume for this role considering:
-- keyword matching
-- skill relevance
-- experience alignment
-- formatting
-
-Return in this format:
+Return strictly:
 
 ATS Score: <number>
 
 Strengths:
 - point
-- point
 
 Weak Areas:
 - point
-- point
 
 Skill Gaps:
-- skills missing for the job
+- missing skills
 
-Improvement Suggestions:
-- actions
+Suggestions:
+- improvements
 
 Resume:
 {resume_text}
@@ -179,43 +151,27 @@ Resume:
         )
 
         result = response.choices[0].message.content
-
-        ats_old = get_score(result)
-
-        if ats_old == 0:
-            ats_old = 55
+        ats_old = get_score(result) or 55
 
         st.session_state.analysis = result
         st.session_state.ats_old = ats_old
 
-        st.subheader("📊 Resume Analysis")
+        st.subheader("📊 Analysis")
         st.write(result)
 
-
 # ===============================
-# IMPROVE RESUME
+# IMPROVE
 # ===============================
 
 if improve_btn:
 
     if not st.session_state.resume_text:
-        st.warning("Analyze resume first")
+        st.warning("Analyze first")
 
     else:
-
         prompt = f"""
-Rewrite this resume professionally for the role:
-
-{job_role}
-
-Improve ATS score.
-
-Fix:
-- skill gaps
-- weak areas
-- formatting
-
-Do not add fake experience.
+Rewrite this resume professionally for {job_role}.
+Improve ATS score. Do not add fake info.
 
 Resume:
 {st.session_state.resume_text}
@@ -225,55 +181,33 @@ Analysis:
 """
 
         response = client.chat.completions.create(
-            model="openrouter/auto",
+            model="gpt-4o-mini",
             messages=[{"role": "user", "content": prompt}],
             temperature=0,
             max_tokens=1200
         )
 
         improved = response.choices[0].message.content
-
         st.session_state.improved = improved
 
-        # ======================
-        # GET NEW ATS SCORE
-        # ======================
-
+        # ATS score for improved
         score_prompt = f"""
-You are an ATS system.
+Give ONLY ATS score (0-100):
 
-Evaluate this resume for the job role:
-
-{job_role}
-
-Return ONLY a number between 0 and 100.
-
-Resume:
 {improved}
 """
 
         score_res = client.chat.completions.create(
-            model="openrouter/auto",
+            model="gpt-4o-mini",
             messages=[{"role": "user", "content": score_prompt}],
-            temperature=0,
             max_tokens=10
         )
 
-        score_text = ""
-
-        if score_res and score_res.choices:
-            score_text = score_res.choices[0].message.content
-
-        ats_new = get_score(score_text)
-
-        if ats_new == 0:
-            ats_new = 85
-
+        ats_new = get_score(score_res.choices[0].message.content) or 85
         st.session_state.ats_new = ats_new
 
         st.subheader("✨ Improved Resume")
         st.write(improved)
-
 
 # ===============================
 # DOWNLOAD
@@ -281,55 +215,47 @@ Resume:
 
 if st.session_state.improved:
 
-    st.subheader("📥 Download Improved Resume")
-
-    pdf_file = generate_pdf(st.session_state.improved)
-    docx_file = generate_docx(st.session_state.improved)
+    st.subheader("📥 Download")
 
     col1, col2 = st.columns(2)
 
     col1.download_button(
-        "Download PDF",
-        pdf_file,
-        "Improved_Resume.pdf"
+        "PDF",
+        generate_pdf(st.session_state.improved),
+        "resume.pdf"
     )
 
     col2.download_button(
-        "Download DOCX",
-        docx_file,
-        "Improved_Resume.docx"
+        "DOCX",
+        generate_docx(st.session_state.improved),
+        "resume.docx"
     )
 
-
 # ===============================
-# COMPARISON
+# COMPARE
 # ===============================
 
 if compare_btn:
 
     if not st.session_state.improved:
-        st.warning("Improve resume first")
+        st.warning("Improve first")
 
     else:
+        old = int(st.session_state.ats_old)
+        new = int(st.session_state.ats_new)
 
-        ats_old = int(st.session_state.ats_old)
-        ats_new = int(st.session_state.ats_new)
+        st.subheader("📊 Comparison")
 
-        improvement = ats_new - ats_old
+        c1, c2 = st.columns(2)
+        c1.metric("Old Score", old)
+        c2.metric("New Score", new)
 
-        st.subheader("📊 Resume Comparison Dashboard")
-
-        col1, col2 = st.columns(2)
-
-        col1.metric("Old ATS Score", ats_old)
-        col2.metric("Improved ATS Score", ats_new)
-
-        st.metric("ATS Improvement", improvement)
+        st.metric("Improvement", new - old)
 
         df = pd.DataFrame({
             "Metric": ["ATS Score"],
-            "Old Resume": [ats_old],
-            "Improved Resume": [ats_new]
+            "Old": [old],
+            "Improved": [new]
         })
 
-        st.dataframe(df, hide_index=True, use_container_width=True)
+        st.dataframe(df, use_container_width=True)
