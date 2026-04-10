@@ -12,14 +12,14 @@ from io import BytesIO
 from docx import Document
 
 # -------------------- API KEY (WORKS FOR GITHUB + LOCAL) --------------------
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+OPENAI_API_KEY = os.getenv("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")
 
 if not OPENAI_API_KEY:
     st.error("❌ API key missing. Add it in Streamlit Secrets or environment variables.")
     st.stop()
 
 client = OpenAI(
-    api_key=OPENAI_API_KEY,
+    api_key= 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,
     base_url="https://openrouter.ai/api/v1"
 )
 
