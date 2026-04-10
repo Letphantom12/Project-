@@ -16,15 +16,15 @@ from docx import Document
 # ===============================
 
 try:
-    OPENAI_API_KEY = st.secrets["OPENAI_API_KEY"]
+    OPENAI_API_KEY = st.secrets["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"]
 except:
-    OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+    OPENAI_API_KEY = os.getenv("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")
 
 if not OPENAI_API_KEY:
     st.error("❌ OPENAI_API_KEY not found")
     st.stop()
 
-client = OpenAI(api_key=OPENAI_API_KEY)
+client = OpenAI(api_key="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")
 
 # ===============================
 # UI
