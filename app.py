@@ -12,7 +12,7 @@ from io import BytesIO
 from docx import Document
 
 # -------------------- API KEY (WORKS FOR GITHUB + LOCAL) --------------------
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY"))
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 if not OPENAI_API_KEY:
     st.error("❌ API key missing. Add it in Streamlit Secrets or environment variables.")
