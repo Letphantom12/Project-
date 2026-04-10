@@ -4,7 +4,6 @@ import io
 import os
 import re
 import hashlib
-from dotenv import load_dotenv
 from openai import OpenAI
 from reportlab.platypus import SimpleDocTemplate, Paragraph
 from reportlab.lib.styles import getSampleStyleSheet
@@ -12,16 +11,15 @@ from reportlab.lib.pagesizes import A4
 from io import BytesIO
 from docx import Document
 
-# -------------------- LOAD API KEY --------------------
-load_dotenv()
+# -------------------- API KEY (WORKS FOR GITHUB + LOCAL) --------------------
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 if not OPENAI_API_KEY:
-    st.error("❌ API key not found. Check .env file.")
+    st.error("❌ API key missing. Add it in Streamlit Secrets or environment variables.")
     st.stop()
 
 client = OpenAI(
-    api_key="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",
+    api_key=OPENAI_API_KEY,
     base_url="https://openrouter.ai/api/v1"
 )
 
@@ -91,7 +89,7 @@ def generate_docx(text):
 
 # -------------------- STEP 1: ANALYZE --------------------
 if analyze_btn and uploaded_file:
-    resume_text = extract_text(uploaded_file)[:800]  # 🔥 reduced tokens
+    resume_text = extract_text(uploaded_file)[:800]
     st.session_state.resume_text = resume_text
     resume_hash = get_hash(resume_text + job_role)
 
@@ -121,7 +119,7 @@ Resume:
                 model="openrouter/auto",
                 input=prompt,
                 temperature=0,
-                max_output_tokens=500
+                max_output_tokens=400
             )
             analysis_text = response.output_text
             st.session_state.analysis_cache[resume_hash] = analysis_text
@@ -152,7 +150,8 @@ Suggestions:
             model="openrouter/auto",
             input=prompt,
             temperature=0,
-            max_output_tokens=500,)
+            max_output_tokens=400
+        )
         st.session_state.improved_resume = response.output_text
 
     st.subheader("✨ Improved Resume")
@@ -180,7 +179,7 @@ ATS_SCORE: number
                 model="openrouter/auto",
                 input=prompt,
                 temperature=0,
-                max_output_tokens=500
+                max_output_tokens=200
             )
 
         new_ats = extract_ats(response.output_text)
