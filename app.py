@@ -25,7 +25,7 @@ if not OPENAI_API_KEY:
     st.stop()
 
 client = OpenAI(
-    api_key=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,
+    api_key="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",
     base_url="https://openrouter.ai/api/v1"
 )
 
